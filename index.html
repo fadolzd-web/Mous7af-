@@ -11450,6 +11450,7 @@ try{ window._buildContinuousCard = buildCard; }catch(e){}
     setupObservers();
     setupVisibleObserver();
     _isBuilding=false;
+    try{ setTimeout(function(){ if(typeof refreshMarks==='function') refreshMarks(); }, 80); }catch(e){}
     return w.querySelector('[data-page="'+centerPage+'"]');
   }
 
@@ -11462,23 +11463,36 @@ try{ window._buildContinuousCard = buildCard; }catch(e){}
     if(!w){ loading=false; return; }
     if(dir>0){
       var frag=document.createDocumentFragment(); var loaded=0;
-      for(var i=0;i<10;i++){ var p=lastLoaded+1+i; if(p>604) break; var c=buildCard(p); if(c){ frag.appendChild(c); loaded++; } }
+      var newCards=[];
+      for(var i=0;i<10;i++){ var p=lastLoaded+1+i; if(p>604) break; var c=buildCard(p); if(c){ frag.appendChild(c); newCards.push(c); loaded++; } }
       if(loaded>0){
         w.insertBefore(frag, sentinelBottom);
         lastLoaded+=loaded;
+        try{
+          if(typeof visibleObserver!=='undefined' && visibleObserver){
+            newCards.forEach(function(el){ try{ visibleObserver.observe(el); }catch(e){} });
+          }
+        }catch(e){}
+        try{ setTimeout(function(){ if(typeof refreshMarks==='function') refreshMarks(); }, 60); }catch(e){}
       }
     } else {
       var prevHeight=w.scrollHeight;
       var frag2=document.createDocumentFragment(); var loaded2=0;
       var toLoad=Math.min(10, firstLoaded-1);
-      for(var p=firstLoaded-toLoad; p<firstLoaded; p++){ var c2=buildCard(p); if(c2){ frag2.appendChild(c2); loaded2++; } }
+      var newCards2=[];
+      for(var p=firstLoaded-toLoad; p<firstLoaded; p++){ var c2=buildCard(p); if(c2){ frag2.appendChild(c2); newCards2.push(c2); loaded2++; } }
       if(loaded2>0){
         w.insertBefore(frag2, sentinelTop.nextSibling);
         firstLoaded-=loaded2;
         var newHeight=w.scrollHeight;
         var diff=newHeight-prevHeight;
-        // حافظ على الموضع بدون scrollBy اللي يكسر الزخم
         window.scrollTo(0, window.scrollY + diff);
+        try{
+          if(typeof visibleObserver!=='undefined' && visibleObserver){
+            newCards2.forEach(function(el){ try{ visibleObserver.observe(el); }catch(e){} });
+          }
+        }catch(e){}
+        try{ setTimeout(function(){ if(typeof refreshMarks==='function') refreshMarks(); }, 60); }catch(e){}
       }
     }
     setTimeout(function(){ loading=false; }, 200);
@@ -12151,32 +12165,47 @@ function getSurahByStart(start){
   }catch(e){ return {name:'سورة '+start, page:start}; }
 }
 function getSingleAyahText(page,num,global_id,quran_ref,btn){
+      // عملية جراحية: الـ ID الفريد هو الأساس لقصار السور، page+num مبهم
       try{
-        var Narray=(typeof N_!=='undefined'?N_:window.N_);
-        if(Narray && page){
-          for(var pi=0; pi<Narray.length; pi++){
-            if(Narray[pi].page==page){
-              var segs=Narray[pi].text.split(/<span class=end>.*?<\/span>/);
-              if(num-1>=0 && num-1<segs.length){
-                var cand=segs[num-1].replace(/<[^>]*>/g,'').replace(/\[\[.*?\]\]/g,'').replace(/\s+/g,' ').trim();
-                if(cand.length>5) return cand;
+        var raw=window.QuranNewDB_Raw && window.QuranNewDB_Raw.pages ? window.QuranNewDB_Raw.pages : [];
+        if(global_id){
+          var gidNum=parseInt(global_id,10);
+          if(!isNaN(gidNum)){
+            for(var ri=0; ri<raw.length; ri++){
+              if(!raw[ri].ayahs) continue;
+              for(var rj=0; rj<raw[ri].ayahs.length; rj++){
+                if(raw[ri].ayahs[rj].global_id==gidNum){
+                  var Narray=(typeof N_!=='undefined'?N_:window.N_);
+                  if(Narray){
+                    for(var pi=0; pi<Narray.length; pi++){
+                      if(Narray[pi].page==raw[ri].page){
+                        var segs=Narray[pi].text.split(/<span class=end>.*?<\/span>/);
+                        if(rj>=0 && rj<segs.length){
+                          var cand=segs[rj].replace(/<[^>]*>/g,'').replace(/\[\[.*?\]\]/g,'').replace(/\s+/g,' ').trim();
+                          if(cand.length>5) return cand;
+                        }
+                        break;
+                      }
+                    }
+                  }
+                  break;
+                }
               }
-              break;
             }
           }
         }
       }catch(e){}
       try{
-        var raw=window.QuranNewDB_Raw && window.QuranNewDB_Raw.pages ? window.QuranNewDB_Raw.pages : [];
-        if(global_id){
-          for(var ri=0; ri<raw.length; ri++){
-            if(!raw[ri].ayahs) continue;
-            for(var rj=0; rj<raw[ri].ayahs.length; rj++){
-              if(raw[ri].ayahs[rj].global_id==global_id){
+        if(quran_ref){
+          var raw2=window.QuranNewDB_Raw && window.QuranNewDB_Raw.pages ? window.QuranNewDB_Raw.pages : [];
+          for(var ri=0; ri<raw2.length; ri++){
+            if(!raw2[ri].ayahs) continue;
+            for(var rj=0; rj<raw2[ri].ayahs.length; rj++){
+              if(raw2[ri].ayahs[rj].quran_ref==quran_ref){
                 var Narray=(typeof N_!=='undefined'?N_:window.N_);
                 if(Narray){
                   for(var pi=0; pi<Narray.length; pi++){
-                    if(Narray[pi].page==raw[ri].page){
+                    if(Narray[pi].page==raw2[ri].page){
                       var segs=Narray[pi].text.split(/<span class=end>.*?<\/span>/);
                       if(rj>=0 && rj<segs.length){
                         var cand=segs[rj].replace(/<[^>]*>/g,'').replace(/\[\[.*?\]\]/g,'').replace(/\s+/g,' ').trim();
@@ -12188,6 +12217,21 @@ function getSingleAyahText(page,num,global_id,quran_ref,btn){
                 }
                 break;
               }
+            }
+          }
+        }
+      }catch(e){}
+      try{
+        var Narray=(typeof N_!=='undefined'?N_:window.N_);
+        if(Narray && page){
+          for(var pi=0; pi<Narray.length; pi++){
+            if(Narray[pi].page==page){
+              var segs=Narray[pi].text.split(/<span class=end>.*?<\/span>/);
+              if(num-1>=0 && num-1<segs.length){
+                var cand=segs[num-1].replace(/<[^>]*>/g,'').replace(/\[\[.*?\]\]/g,'').replace(/\s+/g,' ').trim();
+                if(cand.length>5) return cand;
+              }
+              break;
             }
           }
         }
@@ -12212,14 +12256,12 @@ function refreshMarks(){
         if((gid&&a.global_id&&a.global_id===gid)||(qref&&a.quran_ref&&a.quran_ref===qref)||(a.page===pg&&a.num===num&&!a.global_id&&!a.quran_ref)){
           isFav=true; break;
         }
-        // fallback for old entries without gid/qref
         if(a.key&&(a.key===String(gid)||a.key===qref||a.key===pg+':'+num)){
           isFav=true; break;
         }
       }
       if(isFav) btn.classList.add('fav-ayah-marked');
       else btn.classList.remove('fav-ayah-marked');
-      // تدبر - قلم يمين - نفس نمط المفضلة بالضبط لمنع الخلط
       try{
         var comments=window.loadComments?window.loadComments():JSON.parse(localStorage.getItem("quran-comments-v1")||"[]");
         var curKeyCheck = gid ? String(gid) : (qref ? qref : (pg+':'+num));
@@ -12229,7 +12271,6 @@ function refreshMarks(){
           if((gid&&c.global_id&&c.global_id===gid)||(qref&&c.quran_ref&&c.quran_ref===qref)||(c.key&&c.key===curKeyCheck)||(c.page===pg&&c.num===num&&!c.global_id&&!c.quran_ref)){
             hasNote=true;break;
           }
-          // fallback قديم
           if(c.key&&(c.key===String(gid)||c.key===qref||c.key===pg+':'+num)){
             hasNote=true;break;
           }
@@ -12240,11 +12281,11 @@ function refreshMarks(){
     });
     var refs=loadRef();
     var refMap={}; refs.forEach(function(r){ refMap[String(r.page)]=r; });
+
     function ensureBookmarkForCard(card, pg){
       if(!card) return;
       if(!pg) return;
       if(String(pg)==='1') return;
-      // wrapper خارجي
       var wrapper=card.parentElement;
       var isOurWrapper=wrapper && wrapper.classList.contains('bm-wrapper');
       if(!isOurWrapper){
@@ -12253,6 +12294,7 @@ function refreshMarks(){
         newWrapper.style.position='relative';
         newWrapper.style.overflow='visible';
         newWrapper.style.marginBottom='20px';
+        newWrapper.style.zIndex='1';
         if(card.parentElement){
           card.parentElement.insertBefore(newWrapper, card);
           newWrapper.appendChild(card);
@@ -12264,7 +12306,7 @@ function refreshMarks(){
         bm=document.createElement('div');
         bm.className='page-bookmark';
         bm.setAttribute('data-page-num', pg);
-        bm.innerHTML='<div class="pb-body"><div class="pb-gem"></div><div class="pb-star">✦</div></div>';
+        bm.innerHTML='<div class="pb-body"><div class="pb-gem"></div><div class="pb-star">\u2726</div></div>';
         bm.addEventListener('click', function(e){
           e.stopPropagation(); e.preventDefault();
           var pageNum=bm.getAttribute('data-page-num');
@@ -12273,9 +12315,9 @@ function refreshMarks(){
           if(idx>=0){
             refs2.splice(idx,1); saveRef(refs2);
             bm.classList.remove('active');
-            toast('أزيلت مرجعية '+pageNum);
+            toast('\u0623\u0632\u064a\u0644\u062a \u0645\u0631\u062c\u0639\u064a\u0629 '+pageNum);
           }else{
-            if(refs2.length>=10){ toast('مسموح فقط 10'); return; }
+            if(refs2.length>=10){ toast('\u0645\u0633\u0645\u0648\u062d \u0641\u0642\u0637 10'); return; }
             var colors=getColors();
             var used=refs2.map(function(r){return r.color});
             var next=null;
@@ -12285,7 +12327,7 @@ function refreshMarks(){
             saveRef(refs2);
             bm.classList.add('active');
             bm.style.setProperty('--ref-color', next);
-            toast('حفظ مرجعية '+pageNum);
+            toast('\u062d\u0641\u0638 \u0645\u0631\u062c\u0639\u064a\u0629 '+pageNum);
           }
           refreshMarks();
           try{ renderFav(currentFilter, currentSearch); }catch(err){}
@@ -12301,7 +12343,10 @@ function refreshMarks(){
         bm.classList.remove('active');
       }
     }
-    // 1- المتصل: كل [data-page] - منع التكرار نهائيا
+
+    var isContMode = document.body.classList.contains('mushaf-continuous-mode');
+
+    // 1- المتصل والافقي عبر [data-page] - منطق نظيف يعتمد على وضع الجسم وليس وجود العنصر
     document.querySelectorAll('[data-page]').forEach(function(el){
       var pg=el.getAttribute('data-page'); if(!pg) return;
       if(el.classList.contains('ref-btn')) return;
@@ -12311,43 +12356,80 @@ function refreshMarks(){
       if(el.parentElement && el.parentElement.hasAttribute('data-page') && el.parentElement.getAttribute('data-page')===pg) return;
       var card=el.closest('.page-curl') || el.closest('.quran-page-card');
       if(!card) return;
-      var contWrapper=document.getElementById('same-continuous-wrapper');
-      if(contWrapper){
-        if(card.classList.contains('gold-border-double') && !card.classList.contains('mushaf-continuous-clone')){
-          return;
-        }
+      if(isContMode){
+        if(!card.classList.contains('mushaf-continuous-clone')) return;
+      }else{
+        if(card.classList.contains('mushaf-continuous-clone')) return;
       }
       ensureBookmarkForCard(card, pg);
     });
-    // 2- الأفقي: page-curl الأصلي بدون data-page
-    try{
-      var curPage=null;
-      try{ curPage=JSON.parse(localStorage.getItem('mushaf-luxury-complete')||'{}').currentPage; }catch(e){}
-      if(!curPage) curPage=1;
-      var horizCards=document.querySelectorAll('div.page-curl.gold-border-double:not(.mushaf-continuous-clone)');
-      horizCards.forEach(function(card){
-        // إذا الكارد لديه data-page داخلي، استخدمه، وإلا استخدم curPage
-        var pg=card.getAttribute('data-page') || curPage;
-        var inner=card.querySelector('[data-page]');
-        if(inner) pg=inner.getAttribute('data-page') || pg;
-        ensureBookmarkForCard(card, pg);
-      });
-      // أيضا ابحث عن أي page-curl عام للأفقي
-      var allCurl=document.querySelectorAll('div.page-curl');
-      allCurl.forEach(function(card){
-        if(card.classList.contains('mushaf-continuous-clone')) return;
-        if(card.closest('.bm-wrapper')) return;
-        var pg=card.getAttribute('data-page') || curPage;
-        var inner=card.querySelector('[data-page]');
-        if(inner) pg=inner.getAttribute('data-page') || pg;
-        if(document.querySelectorAll('div.page-curl.gold-border-double:not(.mushaf-continuous-clone)').length===0){
+
+    // 2- الأفقي: فقط عندما لسنا في المتصل
+    if(!isContMode){
+      try{
+        var curPage=null;
+        try{ curPage=JSON.parse(localStorage.getItem('mushaf-luxury-complete')||'{}').currentPage; }catch(e){}
+        if(!curPage) curPage=1;
+        var horizCards=document.querySelectorAll('div.page-curl.gold-border-double:not(.mushaf-continuous-clone)');
+        horizCards.forEach(function(card){
+          if(card.closest('.bm-wrapper')) return;
+          var pg=card.getAttribute('data-page') || curPage;
+          var inner=card.querySelector('[data-page]');
+          if(inner) pg=inner.getAttribute('data-page') || pg;
           ensureBookmarkForCard(card, pg);
-        }
-      });
-    }catch(e){ console.log('horiz',e); }
+        });
+      }catch(e){ console.log('horiz',e); }
+    }
+
     try{document.querySelectorAll('.page-bookmark[data-page-num="1"]').forEach(function(b){b.remove();});}catch(e){}
   }catch(e){ console.log('refreshMarks',e); }
 }
+
+
+
+// --- إصلاح مراقب أفقي ومتصل - عملية جراحية نظيفة ---
+(function(){
+  try{
+    var lastCall=0;
+    function debouncedRefresh(){
+      var now=Date.now();
+      if(now-lastCall<120) return;
+      lastCall=now;
+      try{ if(typeof refreshMarks==='function') refreshMarks(); }catch(e){}
+    }
+    // مراقب DOM للصفحات الجديدة (أفقي + متصل)
+    var obs = new MutationObserver(function(muts){
+      var should=false;
+      for(var i=0;i<muts.length;i++){
+        var m=muts[i];
+        if(m.addedNodes && m.addedNodes.length){
+          for(var j=0;j<m.addedNodes.length;j++){
+            var n=m.addedNodes[j];
+            if(!n.querySelectorAll) continue;
+            if(n.matches && (n.matches('[data-page]') || n.matches('.page-curl'))){ should=true; break; }
+            if(n.querySelector && (n.querySelector('[data-page]') || n.querySelector('.page-curl'))){ should=true; break; }
+          }
+        }
+        if(should) break;
+      }
+      if(should) setTimeout(debouncedRefresh, 90);
+    });
+    try{ obs.observe(document.body, {childList:true, subtree:true}); }catch(e){}
+    // أيضاً عند تغيير الصفحة في localStorage
+    window.addEventListener('storage', function(e){
+      if(e.key && e.key.indexOf('mushaf-luxury')>-1) setTimeout(debouncedRefresh, 150);
+    });
+    // نداء دوري خفيف لضمان الأفقي بعد React render
+    var lastPage=0;
+    setInterval(function(){
+      try{
+        var cur=JSON.parse(localStorage.getItem('mushaf-luxury-complete')||'{}').currentPage||1;
+        if(cur!==lastPage){ lastPage=cur; setTimeout(debouncedRefresh, 180); }
+      }catch(e){}
+    }, 600);
+  }catch(e){ console.log('bookmark observer',e); }
+})();
+
 
 function goToPage(p, ayahNum){
   p=parseInt(p,10);
@@ -12987,13 +13069,18 @@ function renderFav(filter, search){
   root.querySelectorAll('[data-open-wird]').forEach(function(b){ b.addEventListener('click', function(){ if(window.toast) window.toast('تم حذف القارئ - زر القراءة فقط'); }); });
 }
 
-function openWirdEditClean(idx){try{var wirds=loadWirds();var w=wirds[idx];if(!w) return;var overlay=document.getElementById('wird-edit-clean');if(!overlay){overlay=document.createElement('div');overlay.id='wird-edit-clean';overlay.style.cssText='position:fixed;inset:0;background:rgba(10,30,22,0.82);backdrop-filter:blur(14px);z-index:10000030;display:none;align-items:center;justify-content:center;padding:14px;direction:rtl;';overlay.innerHTML='<div style="background:#fff;border-radius:20px;width:100%;max-width:620px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;"><div style="background:linear-gradient(135deg,#0F3D2E,#1a5c45);color:#F5E6C8;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;font-weight:800;"><div><div id="wird-edit-title-clean">✏️ تعديل</div><div id="wird-edit-sub-clean" style="font-size:11px;opacity:.8;"></div></div><button id="wird-edit-x-clean" style="padding:6px 10px;border-radius:50%;border:none;background:rgba(255,255,255,.18);color:#fff;cursor:pointer;">✕</button></div><div style="padding:10px 14px;background:#fff;border-bottom:1px solid #f3f4f6;display:flex;gap:8px;"><button id="wird-rename-clean" style="padding:8px 12px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;cursor:pointer;">✏️ إعادة تسمية</button><button id="wird-clear-clean" style="padding:8px 12px;border-radius:10px;border:none;background:#fef2f2;color:#ef4444;cursor:pointer;">✕ إفراغ الورد</button></div><div id="wird-edit-list-clean" style="flex:1;overflow:auto;padding:14px;background:#FFFBEB;"></div></div>';document.body.appendChild(overlay);document.getElementById('wird-edit-x-clean').addEventListener('click',function(){overlay.style.display='none';});overlay.addEventListener('click',function(e){if(e.target===overlay) overlay.style.display='none';});document.getElementById('wird-rename-clean').addEventListener('click',function(){var i=parseInt(overlay.dataset.idx,10);var ws=loadWirds();var ww=ws[i];var nn=prompt('اسم جديد:',ww.name);if(!nn) return;nn=nn.trim();if(!nn) return;if(ws.some(function(x,j){return j!==i&&x.name.trim()===nn;})){return;}ws[i].name=nn;saveWirds(ws);document.getElementById('wird-edit-title-clean').textContent='✏️ '+nn;if(typeof renderFav==='function') renderFav();});document.getElementById('wird-clear-clean').addEventListener('click',function(){var i=parseInt(overlay.dataset.idx,10);if(!confirm('تفريغ الورد؟')) return;var ws=loadWirds();ws[i].items=[];saveWirds(ws);openWirdEditClean(i);if(typeof renderFav==='function') renderFav();});}document.getElementById('wird-edit-title-clean').textContent='✏️ '+w.name;document.getElementById('wird-edit-sub-clean').textContent='('+w.items.length+')';var list=document.getElementById('wird-edit-list-clean');list.innerHTML='';w.items.forEach(function(it,i){var div=document.createElement('div');div.style.cssText='background:#fff;border:1.5px solid #E0E7FF;border-radius:14px;padding:12px;margin-bottom:10px;display:flex;justify-content:space-between;gap:10px;';var dN=it.name||it.surahName||''; if(!dN || String(dN).indexOf('NaN')>=0){ try{ var sNN=it.surahNumber||it.id||it.number; if(sNN>=1&&sNN<=114 && typeof getSurahByNumber==='function'){ var sII=getSurahByNumber(sNN); if(sII&&sII.name) dN=sII.name; } }catch(e){} } if(!dN||String(dN).indexOf('NaN')>=0) dN='سورة '+(it.surahNumber||it.id||''); var displayText = it.textTaj||it.text||'';
-      if(!displayText && it.global_id){
+function openWirdEditClean(idx){try{var wirds=loadWirds();var w=wirds[idx];if(!w) return;var overlay=document.getElementById('wird-edit-clean');if(!overlay){overlay=document.createElement('div');overlay.id='wird-edit-clean';overlay.style.cssText='position:fixed;inset:0;background:rgba(10,30,22,0.82);backdrop-filter:blur(14px);z-index:10000030;display:none;align-items:center;justify-content:center;padding:14px;direction:rtl;';overlay.innerHTML='<div style="background:#fff;border-radius:20px;width:100%;max-width:620px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;"><div style="background:linear-gradient(135deg,#0F3D2E,#1a5c45);color:#F5E6C8;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;font-weight:800;"><div><div id="wird-edit-title-clean">✏️ تعديل</div><div id="wird-edit-sub-clean" style="font-size:11px;opacity:.8;"></div></div><button id="wird-edit-x-clean" style="padding:6px 10px;border-radius:50%;border:none;background:rgba(255,255,255,.18);color:#fff;cursor:pointer;">✕</button></div><div style="padding:10px 14px;background:#fff;border-bottom:1px solid #f3f4f6;display:flex;gap:8px;"><button id="wird-rename-clean" style="padding:8px 12px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;cursor:pointer;">✏️ إعادة تسمية</button><button id="wird-clear-clean" style="padding:8px 12px;border-radius:10px;border:none;background:#fef2f2;color:#ef4444;cursor:pointer;">✕ إفراغ الورد</button></div><div id="wird-edit-list-clean" style="flex:1;overflow:auto;padding:14px;background:#FFFBEB;"></div></div>';document.body.appendChild(overlay);document.getElementById('wird-edit-x-clean').addEventListener('click',function(){overlay.style.display='none';});overlay.addEventListener('click',function(e){if(e.target===overlay) overlay.style.display='none';});document.getElementById('wird-rename-clean').addEventListener('click',function(){var i=parseInt(overlay.dataset.idx,10);var ws=loadWirds();var ww=ws[i];var nn=prompt('اسم جديد:',ww.name);if(!nn) return;nn=nn.trim();if(!nn) return;if(ws.some(function(x,j){return j!==i&&x.name.trim()===nn;})){return;}ws[i].name=nn;saveWirds(ws);document.getElementById('wird-edit-title-clean').textContent='✏️ '+nn;if(typeof renderFav==='function') renderFav();});document.getElementById('wird-clear-clean').addEventListener('click',function(){var i=parseInt(overlay.dataset.idx,10);if(!confirm('تفريغ الورد؟')) return;var ws=loadWirds();ws[i].items=[];saveWirds(ws);openWirdEditClean(i);if(typeof renderFav==='function') renderFav();});}document.getElementById('wird-edit-title-clean').textContent='✏️ '+w.name;document.getElementById('wird-edit-sub-clean').textContent='('+w.items.length+')';var list=document.getElementById('wird-edit-list-clean');list.innerHTML='';w.items.forEach(function(it,i){var div=document.createElement('div');div.style.cssText='background:#fff;border:1.5px solid #E0E7FF;border-radius:14px;padding:12px;margin-bottom:10px;display:flex;justify-content:space-between;gap:10px;';var dN=it.name||it.surahName||''; if(!dN || String(dN).indexOf('NaN')>=0){ try{ var sNN=it.surahNumber||it.id||it.number; if(sNN>=1&&sNN<=114 && typeof getSurahByNumber==='function'){ var sII=getSurahByNumber(sNN); if(sII&&sII.name) dN=sII.name; } }catch(e){} } if(!dN||String(dN).indexOf('NaN')>=0) dN='سورة '+(it.surahNumber||it.id||''); var displayText = '';
+      // عملية جراحية: الـ ID الفريد هو المرجع الحقيقي - قصار السور كلها صفحة 604 آية 1
+      if(it.global_id){
         try{
           var mMeta = typeof getAyahMetaByGlobalId==='function' ? getAyahMetaByGlobalId(it.global_id) : null;
           if(mMeta && typeof getAyahTextByMeta==='function'){
             var t = getAyahTextByMeta(mMeta);
-            if(t && t!=='آية' && t.indexOf('آية '+it.num)===-1) displayText = t;
+            if(t && t!=='آية' && t.indexOf('آية '+it.num)===-1 && t.length>3) displayText = t;
+          }
+          if(!displayText){
+            var t0 = typeof getSingleAyahText==='function' ? getSingleAyahText(null, null, it.global_id, null) : '';
+            if(t0 && t0.length>3) displayText = t0;
           }
         }catch(e){}
       }
@@ -13002,17 +13089,16 @@ function openWirdEditClean(idx){try{var wirds=loadWirds();var w=wirds[idx];if(!w
           var mMeta2 = typeof getAyahMetaByQuranRef==='function' ? getAyahMetaByQuranRef(it.quran_ref) : null;
           if(mMeta2 && typeof getAyahTextByMeta==='function'){
             var t2 = getAyahTextByMeta(mMeta2);
-            if(t2 && t2!=='آية') displayText = t2;
+            if(t2 && t2!=='آية' && t2.length>3) displayText = t2;
+          }
+          if(!displayText){
+            var t0b = typeof getSingleAyahText==='function' ? getSingleAyahText(null, null, null, it.quran_ref) : '';
+            if(t0b && t0b.length>3) displayText = t0b;
           }
         }catch(e){}
       }
-      if(!displayText && it.page && it.num){
-        try{
-          if(typeof getSingleAyahText==='function'){
-            var t3 = getSingleAyahText(it.page, it.num);
-            if(t3) displayText = t3;
-          }
-        }catch(e){}
+      if(!displayText){
+        displayText = it.textTaj||it.text||'';
       }
       var txt=it.type==='ayah'?('<div style="font-family:Amiri,serif;font-size:16px;">'+(displayText||'')+' <span style="color:#D4AF37;">﴿'+it.num+'﴾</span></div>'):('<div style="font-weight:800;">📖 '+dN+'</div>');div.innerHTML=txt+'<div style="display:flex;flex-direction:row;gap:6px;"><button data-up="'+i+'" style="padding:6px 10px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;cursor:pointer;">⬆️</button><button data-down="'+i+'" style="padding:6px 10px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;cursor:pointer;">⬇️</button><button data-del="'+i+'" style="padding:6px 10px;border-radius:8px;border:none;background:#fef2f2;color:#ef4444;cursor:pointer;">❌</button></div>';list.appendChild(div);div.querySelectorAll('button').forEach(function(b){b.addEventListener('click',function(){var act=b.hasAttribute('data-up')?'up':b.hasAttribute('data-down')?'down':'del';var itemIdx=parseInt(b.getAttribute('data-up')||b.getAttribute('data-down')||b.getAttribute('data-del'),10);var ws=loadWirds();var ww=ws[idx];if(act==='del'){if(!confirm('حذف؟')) return;ww.items.splice(itemIdx,1);}else if(act==='up'&&itemIdx>0){var tmp=ww.items[itemIdx];ww.items[itemIdx]=ww.items[itemIdx-1];ww.items[itemIdx-1]=tmp;}else if(act==='down'&&itemIdx<ww.items.length-1){var tmp=ww.items[itemIdx];ww.items[itemIdx]=ww.items[itemIdx+1];ww.items[itemIdx+1]=tmp;}saveWirds(ws);openWirdEditClean(idx);if(typeof renderFav==='function') renderFav();});});});overlay.style.display='flex';overlay.dataset.idx=idx;}catch(e){console.error(e);}}
 
@@ -13176,7 +13262,7 @@ try{window.loadFav=loadFav;window.saveFav=saveFav;window.loadRef=loadRef;window.
   top:-2px!important;
   left:12px!important;
   width:32px!important; height:44px!important;
-  z-index:1!important;
+  z-index:5!important;
   cursor:pointer; display:block!important; visibility:visible!important; opacity:.7;
 }
 .page-bookmark .pb-body{
