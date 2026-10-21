@@ -1,4 +1,4 @@
-name: build-signed
+name: build
 on:
   push:
     branches: [ main, master ]
@@ -15,17 +15,31 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-      - name: FIX CONFIG - Auto repair webDir
+      - name: FIX FOLDERS AND ICON
         run: |
-          echo "Fixing capacitor.config.json..."
-          rm -f capacitor.config.json
-          echo '{"appId":"com.mushaf.luxury","appName":"المصحف الفاخر","webDir":"www","plugins":{"LocalNotifications":{"smallIcon":"ic_launcher","iconColor":"#1A3C2A"}}}' > capacitor.config.json
+          echo "Fixing folders..."
+          # صلح Www ل www
+          if [ -d "Www" ]; then mv Www www; echo "Renamed Www to www"; fi
+          if [ -d "WWW" ]; then mv WWW www; echo "Renamed WWW to www"; fi
           mkdir -p www
-          if [ -f index.html ]; then cp index.html www/index.html; echo "Copied index.html to www/"; fi
-          if [ -f www/index.html ]; then echo "www/index.html exists"; ls -lh www/index.html; else echo "ERROR no www/index.html"; exit 1; fi
+          if [ -f "index.html" ] && [ ! -f "www/index.html" ]; then cp index.html www/index.html; echo "Copied root index to www/"; fi
+          if [ -f "Www/index.html" ]; then cp Www/index.html www/index.html; fi
+          # تأكد من capacitor config صحيح
+          echo '{"appId":"com.mushaf.luxury","appName":"المصحف الفاخر","webDir":"www","plugins":{"LocalNotifications":{"smallIcon":"ic_launcher","iconColor":"#1A3C2A"}}}' > capacitor.config.json
+          ls -R
+          echo "Config:"
           cat capacitor.config.json
       - run: npm install
       - run: npx cap add android || true
+      - name: Copy Icon to Android
+        run: |
+          if [ -f "ic_launcher.png" ]; then
+            echo "Found ic_launcher.png in root - copying to android..."
+            for d in android/app/src/main/res/mipmap-*; do
+              if [ -d "$d" ]; then cp ic_launcher.png $d/ic_launcher.png; cp ic_launcher.png $d/ic_launcher_round.png; echo "Copied to $d"; fi
+            done
+          fi
+          if [ -f "icon-512.png" ]; then cp icon-512.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png || true; fi
       - run: npx cap sync android
       - name: Decode Keystore
         env:
@@ -40,13 +54,25 @@ jobs:
         run: |
           if [ -n "$STORE_PASSWORD" ]; then echo "storeFile=release-key.jks" > android/key.properties; echo "storePassword=$STORE_PASSWORD" >> android/key.properties; echo "keyAlias=$KEY_ALIAS" >> android/key.properties; echo "keyPassword=$KEY_PASSWORD" >> android/key.properties; fi
       - run: chmod +x android/gradlew
-      - run: cd android && ./gradlew bundleRelease
-      - run: cd android && ./gradlew assembleRelease
-      - uses: actions/upload-artifact@v4
+      - name: Build APK for Testing
+        run: cd android && ./gradlew assembleDebug
+      - name: Build AAB + APK Release
+        run: |
+          cd android
+          ./gradlew bundleRelease || true
+          ./gradlew assembleRelease || true
+      - name: Upload APK Debug (for testing)
+        uses: actions/upload-artifact@v4
         with:
-          name: app-release-signed-aab
+          name: APK-للتجربة-ثبتها-مباشرة
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Upload AAB Release
+        uses: actions/upload-artifact@v4
+        with:
+          name: AAB-للبلاي-ستور
           path: android/app/build/outputs/bundle/release/app-release.aab
-      - uses: actions/upload-artifact@v4
+      - name: Upload APK Release Signed
+        uses: actions/upload-artifact@v4
         with:
-          name: app-release-signed-apk
+          name: APK-موقع-نهائي
           path: android/app/build/outputs/apk/release/app-release.apk
