@@ -1,11 +1,10 @@
-
-name: Build Signed Release AAB & APK
+name: build-signed
 on:
   push:
     branches: [ main, master ]
   workflow_dispatch:
 jobs:
-  build-signed:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,6 +15,15 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+      - name: FIX CONFIG - Auto repair webDir
+        run: |
+          echo "Fixing capacitor.config.json..."
+          rm -f capacitor.config.json
+          echo '{"appId":"com.mushaf.luxury","appName":"المصحف الفاخر","webDir":"www","plugins":{"LocalNotifications":{"smallIcon":"ic_launcher","iconColor":"#1A3C2A"}}}' > capacitor.config.json
+          mkdir -p www
+          if [ -f index.html ]; then cp index.html www/index.html; echo "Copied index.html to www/"; fi
+          if [ -f www/index.html ]; then echo "www/index.html exists"; ls -lh www/index.html; else echo "ERROR no www/index.html"; exit 1; fi
+          cat capacitor.config.json
       - run: npm install
       - run: npx cap add android || true
       - run: npx cap sync android
@@ -23,21 +31,14 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release-key.jks
-          fi
+          if [ -n "$KEYSTORE_BASE64" ]; then echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release-key.jks; fi
       - name: Create key.properties
         env:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -n "$STORE_PASSWORD" ]; then
-            echo "storeFile=release-key.jks" > android/key.properties
-            echo "storePassword=$STORE_PASSWORD" >> android/key.properties
-            echo "keyAlias=$KEY_ALIAS" >> android/key.properties
-            echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
-          fi
+          if [ -n "$STORE_PASSWORD" ]; then echo "storeFile=release-key.jks" > android/key.properties; echo "storePassword=$STORE_PASSWORD" >> android/key.properties; echo "keyAlias=$KEY_ALIAS" >> android/key.properties; echo "keyPassword=$KEY_PASSWORD" >> android/key.properties; fi
       - run: chmod +x android/gradlew
       - run: cd android && ./gradlew bundleRelease
       - run: cd android && ./gradlew assembleRelease
