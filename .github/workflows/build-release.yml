@@ -15,32 +15,35 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-      - name: FIX FOLDERS AND ICON
+      - name: FIX FOLDERS
         run: |
-          echo "Fixing folders..."
-          # صلح Www ل www
-          if [ -d "Www" ]; then mv Www www; echo "Renamed Www to www"; fi
-          if [ -d "WWW" ]; then mv WWW www; echo "Renamed WWW to www"; fi
+          if [ -d "Www" ]; then mv Www www; fi
+          if [ -d "WWW" ]; then mv WWW www; fi
           mkdir -p www
-          if [ -f "index.html" ] && [ ! -f "www/index.html" ]; then cp index.html www/index.html; echo "Copied root index to www/"; fi
-          if [ -f "Www/index.html" ]; then cp Www/index.html www/index.html; fi
-          # تأكد من capacitor config صحيح
+          if [ -f "index.html" ] && [ ! -f "www/index.html" ]; then cp index.html www/index.html; fi
           echo '{"appId":"com.mushaf.luxury","appName":"المصحف الفاخر","webDir":"www","plugins":{"LocalNotifications":{"smallIcon":"ic_launcher","iconColor":"#1A3C2A"}}}' > capacitor.config.json
-          ls -R
-          echo "Config:"
-          cat capacitor.config.json
+          ls www/
       - run: npm install
       - run: npx cap add android || true
-      - name: Copy Icon to Android
+      - run: npx cap sync android
+      - name: FIX ICON - Use your ic_launcher.png
         run: |
           if [ -f "ic_launcher.png" ]; then
-            echo "Found ic_launcher.png in root - copying to android..."
-            for d in android/app/src/main/res/mipmap-*; do
-              if [ -d "$d" ]; then cp ic_launcher.png $d/ic_launcher.png; cp ic_launcher.png $d/ic_launcher_round.png; echo "Copied to $d"; fi
+            echo "Installing custom icon..."
+            # احذف الأيقونات المتضاربة اللي بتعمل Duplicate
+            rm -rf android/app/src/main/res/mipmap-anydpi-v26
+            # انسخ أيقونتك لكل المقاسات
+            for size in hdpi mdpi xhdpi xxhdpi xxxhdpi; do
+              if [ -d "android/app/src/main/res/mipmap-$size" ]; then
+                cp ic_launcher.png android/app/src/main/res/mipmap-$size/ic_launcher.png
+                cp ic_launcher.png android/app/src/main/res/mipmap-$size/ic_launcher_round.png
+                echo " -> mipmap-$size done"
+              fi
             done
+            ls android/app/src/main/res/mipmap-xxxhdpi/
+          else
+            echo "No ic_launcher.png in root, using default"
           fi
-          if [ -f "icon-512.png" ]; then cp icon-512.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png || true; fi
-      - run: npx cap sync android
       - name: Decode Keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -54,24 +57,24 @@ jobs:
         run: |
           if [ -n "$STORE_PASSWORD" ]; then echo "storeFile=release-key.jks" > android/key.properties; echo "storePassword=$STORE_PASSWORD" >> android/key.properties; echo "keyAlias=$KEY_ALIAS" >> android/key.properties; echo "keyPassword=$KEY_PASSWORD" >> android/key.properties; fi
       - run: chmod +x android/gradlew
-      - name: Build APK for Testing
+      - name: Build APK Debug (for testing with icon)
         run: cd android && ./gradlew assembleDebug
       - name: Build AAB + APK Release
         run: |
           cd android
           ./gradlew bundleRelease || true
           ./gradlew assembleRelease || true
-      - name: Upload APK Debug (for testing)
+      - name: Upload APK Debug - للتجربة مع الأيقونة
         uses: actions/upload-artifact@v4
         with:
-          name: APK-للتجربة-ثبتها-مباشرة
+          name: APK-مع-الايقونة-الجديدة
           path: android/app/build/outputs/apk/debug/app-debug.apk
-      - name: Upload AAB Release
+      - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
           name: AAB-للبلاي-ستور
           path: android/app/build/outputs/bundle/release/app-release.aab
-      - name: Upload APK Release Signed
+      - name: Upload APK Release
         uses: actions/upload-artifact@v4
         with:
           name: APK-موقع-نهائي
